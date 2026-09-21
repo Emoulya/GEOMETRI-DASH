@@ -104,6 +104,40 @@ export default function ShapeCanvas({
 
   const isCircle = shape.type === "lingkaran";
 
+  const nextSideIndex = useMemo(() => {
+    if (highlightMode === "sisi" && !isCircle) {
+      for (let i = 0; i < vertices.length; i++) {
+        if (!highlightedSides.find((s) => s.index === i)) {
+          return i;
+        }
+      }
+    }
+    return -1;
+  }, [highlightMode, isCircle, vertices.length, highlightedSides]);
+
+  const nextAngleIndex = useMemo(() => {
+    if (highlightMode === "sudut" && !isCircle) {
+      for (let i = 0; i < vertices.length; i++) {
+        if (!highlightedAngles.find((a) => a.index === i)) {
+          return i;
+        }
+      }
+    }
+    return -1;
+  }, [highlightMode, isCircle, vertices.length, highlightedAngles]);
+
+  const nextVertexIndex = useMemo(() => {
+    if (highlightMode === "titik-sudut" && !isCircle) {
+      for (let i = 0; i < vertices.length; i++) {
+        if (!highlightedVertices.find((v) => v.index === i)) {
+          return i;
+        }
+      }
+    }
+    return -1;
+  }, [highlightMode, isCircle, vertices.length, highlightedVertices]);
+
+
   return (
     <svg
       viewBox={`0 0 ${CANVAS_SIZE} ${CANVAS_SIZE}`}
@@ -152,6 +186,43 @@ export default function ShapeCanvas({
             );
             const isHighlighted = !!sideHighlight;
             const strokeColor = sideHighlight?.color ?? SIDE_COLOR;
+            const isNextSide = i === nextSideIndex;
+
+            let arrowGroup = null;
+            if (isNextSide) {
+              const mx = (v.x + next.x) / 2;
+              const my = (v.y + next.y) / 2;
+              const dx = next.x - v.x;
+              const dy = next.y - v.y;
+              const len = Math.sqrt(dx * dx + dy * dy);
+              if (len > 0) {
+                const nx = -dy / len;
+                const ny = dx / len;
+                
+                const cx = mx - CANVAS_CENTER;
+                const cy = my - CANVAS_CENTER;
+                const dot = nx * cx + ny * cy;
+                const isOutward = dot > 0;
+                
+                const outNx = isOutward ? nx : -nx;
+                const outNy = isOutward ? ny : -ny;
+                const inNx = -outNx;
+                const inNy = -outNy;
+                
+                const arrowX = mx + outNx * 32;
+                const arrowY = my + outNy * 32;
+                const angle = Math.atan2(inNy, inNx) * (180 / Math.PI);
+                
+                arrowGroup = (
+                  <g transform={`translate(${arrowX}, ${arrowY}) rotate(${angle})`}>
+                    <g>
+                      <animateTransform attributeName="transform" type="translate" values="-4,0; 4,0; -4,0" dur="1s" repeatCount="indefinite" />
+                      <path d="M-12,-8 L4,0 L-12,8 L-6,0 Z" fill="var(--geo-side)" stroke="white" strokeWidth="1.5" strokeLinejoin="round" />
+                    </g>
+                  </g>
+                );
+              }
+            }
 
             return (
               <g key={`side-${i}`}>
@@ -203,6 +274,8 @@ export default function ShapeCanvas({
                     rotation={shape.rotation}
                   />
                 )}
+                {/* Next Side Arrow */}
+                {arrowGroup}
               </g>
             );
           })}
@@ -221,6 +294,43 @@ export default function ShapeCanvas({
             );
             const isHighlighted = !!angleHighlight;
             const isRightAngle = props.rightAngleIndices.includes(i);
+            const isNextAngle = i === nextAngleIndex;
+
+            let arrowGroup = null;
+            if (isNextAngle) {
+              const d1x = prev.x - v.x;
+              const d1y = prev.y - v.y;
+              const d2x = next.x - v.x;
+              const d2y = next.y - v.y;
+              const len1 = Math.sqrt(d1x * d1x + d1y * d1y);
+              const len2 = Math.sqrt(d2x * d2x + d2y * d2y);
+              
+              if (len1 > 0 && len2 > 0) {
+                const n1x = d1x / len1;
+                const n1y = d1y / len1;
+                const n2x = d2x / len2;
+                const n2y = d2y / len2;
+                const bx = n1x + n2x;
+                const by = n1y + n2y;
+                const bLen = Math.sqrt(bx * bx + by * by);
+                
+                if (bLen > 0) {
+                  const arrowX = v.x + (bx / bLen) * 35;
+                  const arrowY = v.y + (by / bLen) * 35;
+                  // point towards vertex
+                  const angle = Math.atan2(-by, -bx) * (180 / Math.PI);
+                  
+                  arrowGroup = (
+                    <g transform={`translate(${arrowX}, ${arrowY}) rotate(${angle})`}>
+                      <g>
+                        <animateTransform attributeName="transform" type="translate" values="-4,0; 4,0; -4,0" dur="1s" repeatCount="indefinite" />
+                        <path d="M-12,-8 L4,0 L-12,8 L-6,0 Z" fill="var(--geo-angle)" stroke="white" strokeWidth="1.5" strokeLinejoin="round" />
+                      </g>
+                    </g>
+                  );
+                }
+              }
+            }
 
             return (
               <g key={`angle-${i}`}>
@@ -263,6 +373,8 @@ export default function ShapeCanvas({
                     rotation={shape.rotation}
                   />
                 )}
+                {/* Next Angle Arrow */}
+                {arrowGroup}
               </g>
             );
           })}
@@ -275,6 +387,30 @@ export default function ShapeCanvas({
               (vh) => vh.index === i,
             );
             const isCounted = !!vertexHighlight;
+            const isNextVertex = i === nextVertexIndex;
+
+            let arrowGroup = null;
+            if (isNextVertex) {
+              const dx = v.x - CANVAS_CENTER;
+              const dy = v.y - CANVAS_CENTER;
+              const len = Math.sqrt(dx * dx + dy * dy);
+              const nx = len === 0 ? 0 : dx / len;
+              const ny = len === 0 ? 0 : dy / len;
+              
+              const arrowX = v.x + nx * 32;
+              const arrowY = v.y + ny * 32;
+              // Point towards vertex
+              const angle = Math.atan2(-ny, -nx) * (180 / Math.PI);
+              
+              arrowGroup = (
+                <g transform={`translate(${arrowX}, ${arrowY}) rotate(${angle})`}>
+                  <g>
+                    <animateTransform attributeName="transform" type="translate" values="-4,0; 4,0; -4,0" dur="1s" repeatCount="indefinite" />
+                    <path d="M-12,-8 L4,0 L-12,8 L-6,0 Z" fill="var(--geo-vertex)" stroke="white" strokeWidth="1.5" strokeLinejoin="round" />
+                  </g>
+                </g>
+              );
+            }
 
             return (
               <g key={`vertex-${i}`}>
@@ -331,6 +467,8 @@ export default function ShapeCanvas({
                     }
                   }}
                 />
+                {/* Next Vertex Arrow */}
+                {arrowGroup}
               </g>
             );
           })}
@@ -380,18 +518,53 @@ export default function ShapeCanvas({
           !isCircle &&
           scaledVertices.map((v, i) => {
             const next = scaledVertices[(i + 1) % scaledVertices.length];
+            
+            const mx = (v.x + next.x) / 2;
+            const my = (v.y + next.y) / 2;
+            const dx = next.x - v.x;
+            const dy = next.y - v.y;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            let arrowGroup = null;
+            
+            if (len > 0) {
+              const nx = -dy / len;
+              const ny = dx / len;
+              const cx = mx - CANVAS_CENTER;
+              const cy = my - CANVAS_CENTER;
+              const dot = nx * cx + ny * cy;
+              const isOutward = dot > 0;
+              const outNx = isOutward ? nx : -nx;
+              const outNy = isOutward ? ny : -ny;
+              const inNx = -outNx;
+              const inNy = -outNy;
+              const arrowX = mx + outNx * 32;
+              const arrowY = my + outNy * 32;
+              const angle = Math.atan2(inNy, inNx) * (180 / Math.PI);
+              
+              arrowGroup = (
+                <g transform={`translate(${arrowX}, ${arrowY}) rotate(${angle})`}>
+                  <g>
+                    <animateTransform attributeName="transform" type="translate" values="-4,0; 4,0; -4,0" dur="1s" repeatCount="indefinite" />
+                    <path d="M-12,-8 L4,0 L-12,8 L-6,0 Z" fill="var(--geo-side)" stroke="white" strokeWidth="1.5" strokeLinejoin="round" />
+                  </g>
+                </g>
+              );
+            }
+
             return (
-              <line
-                key={`char-count-${i}`}
-                x1={v.x}
-                y1={v.y}
-                x2={next.x}
-                y2={next.y}
-                stroke={SIDE_COLOR}
-                strokeWidth={4}
-                strokeLinecap="round"
-                opacity={0.7}
-              />
+              <g key={`char-count-${i}`}>
+                <line
+                  x1={v.x}
+                  y1={v.y}
+                  x2={next.x}
+                  y2={next.y}
+                  stroke={SIDE_COLOR}
+                  strokeWidth={4}
+                  strokeLinecap="round"
+                  opacity={0.7}
+                />
+                {arrowGroup}
+              </g>
             );
           })}
 
@@ -402,22 +575,61 @@ export default function ShapeCanvas({
             const prevIdx =
               (i - 1 + scaledVertices.length) % scaledVertices.length;
             const nextIdx = (i + 1) % scaledVertices.length;
+            const prev = scaledVertices[prevIdx];
+            const next = scaledVertices[nextIdx];
             const isRight = props.rightAngleIndices.includes(i);
-            return isRight ? (
-              <RightAngleMarker
-                key={`char-ac-${i}`}
-                vertex={v}
-                p1={scaledVertices[prevIdx]}
-                p2={scaledVertices[nextIdx]}
-              />
-            ) : (
-              <ArcMarker
-                key={`char-ac-${i}`}
-                vertex={v}
-                p1={scaledVertices[prevIdx]}
-                p2={scaledVertices[nextIdx]}
-                color={ANGLE_COLOR}
-              />
+            
+            let arrowGroup = null;
+            const d1x = prev.x - v.x;
+            const d1y = prev.y - v.y;
+            const d2x = next.x - v.x;
+            const d2y = next.y - v.y;
+            const len1 = Math.sqrt(d1x * d1x + d1y * d1y);
+            const len2 = Math.sqrt(d2x * d2x + d2y * d2y);
+            
+            if (len1 > 0 && len2 > 0) {
+              const n1x = d1x / len1;
+              const n1y = d1y / len1;
+              const n2x = d2x / len2;
+              const n2y = d2y / len2;
+              const bx = n1x + n2x;
+              const by = n1y + n2y;
+              const bLen = Math.sqrt(bx * bx + by * by);
+              
+              if (bLen > 0) {
+                const arrowX = v.x + (bx / bLen) * 35;
+                const arrowY = v.y + (by / bLen) * 35;
+                const angle = Math.atan2(-by, -bx) * (180 / Math.PI);
+                
+                arrowGroup = (
+                  <g transform={`translate(${arrowX}, ${arrowY}) rotate(${angle})`}>
+                    <g>
+                      <animateTransform attributeName="transform" type="translate" values="-4,0; 4,0; -4,0" dur="1s" repeatCount="indefinite" />
+                      <path d="M-12,-8 L4,0 L-12,8 L-6,0 Z" fill="var(--geo-angle)" stroke="white" strokeWidth="1.5" strokeLinejoin="round" />
+                    </g>
+                  </g>
+                );
+              }
+            }
+
+            return (
+              <g key={`char-ac-${i}`}>
+                {isRight ? (
+                  <RightAngleMarker
+                    vertex={v}
+                    p1={prev}
+                    p2={next}
+                  />
+                ) : (
+                  <ArcMarker
+                    vertex={v}
+                    p1={prev}
+                    p2={next}
+                    color={ANGLE_COLOR}
+                  />
+                )}
+                {arrowGroup}
+              </g>
             );
           })}
 
