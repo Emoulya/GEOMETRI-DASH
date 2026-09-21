@@ -1,0 +1,15 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Izinkan akses baca dan tulis untuk koleksi students (login PIN siswa)
+    match /students/{studentId} {
+      allow read, write: if true;
+    }
+
+    // Default untuk koleksi lainnya selama masa pengembangan/uji coba
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
